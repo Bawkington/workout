@@ -193,11 +193,57 @@
     background: var(--surface); border: 1px solid var(--border);
     color: var(--fg-dim); font-size: 14px; font-weight: 600;
   }
+  .grip-header {
+    font-size: 13px; font-weight: 700; color: var(--accent);
+    padding: 10px 0 4px; margin-top: 4px;
+    border-top: 1px solid var(--border);
+  }
+  .grip-header:first-of-type { border-top: none; margin-top: 0; }
+
   .history-entry {
     background: var(--surface); border-radius: 10px; padding: 12px 14px;
     margin-top: 8px; border: 1px solid var(--border); font-size: 13px;
     display: flex; justify-content: space-between; align-items: center;
   }
+
+  /* Stats */
+  .stats-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  .stats-header h2 { font-size: 22px; font-weight: 700; }
+
+  .stat-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 12px; text-align: center;
+  }
+  .stat-card .stat-val { font-size: 24px; font-weight: 800; margin-bottom: 2px; }
+  .stat-card .stat-label { font-size: 11px; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .stats-section { margin-bottom: 20px; }
+  .stats-section h3 {
+    font-size: 12px; font-weight: 700; color: var(--fg-dim);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;
+  }
+
+  .stat-ex-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 10px;
+  }
+  .stat-ex-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .stat-ex-row { display: flex; justify-content: space-between; align-items: center; }
+  .stat-ex-trend { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .stat-ex-values { display: flex; gap: 4px; align-items: baseline; }
+  .stat-ex-values span {
+    padding: 2px 7px; border-radius: 5px; font-size: 12px;
+    background: var(--surface2); color: var(--fg-dim);
+  }
+  .stat-ex-values span:last-child { background: var(--accent); color: #fff; font-weight: 700; }
+  .stat-pr { font-size: 12px; color: var(--green); font-weight: 700; margin-top: 6px; }
+  .stat-arrow { font-size: 16px; font-weight: 700; }
+  .stat-arrow.up { color: var(--green); }
+  .stat-arrow.flat { color: var(--fg-dim); }
+  .stat-arrow.down { color: var(--urgent); }
+
+  .stat-empty { text-align: center; padding: 40px 20px; color: var(--fg-dim); font-size: 14px; }
 </style>
 </head>
 <body>
@@ -210,8 +256,8 @@ const ROUTINE = {
     name: "Heavy Pull + Fingers",
     exercises: [
       { id: "pullups", name: "Weighted Pull-ups", sets: 4, reps: 5, type: "weight", rest: 180, inc: 2.5 },
-      { id: "hangs", name: "Hangboard Max Hangs", sets: 3, reps: null, hold: 10, type: "hang", rest: 180,
-        grips: ["Half Crimp", "Open Hand", "Three Finger Drag"] },
+      { id: "hangs", name: "Hangboard Max Hangs", setsPerGrip: 3, hold: 10, type: "hang", rest: 180,
+        grips: ["Half Crimp", "Three Finger Drag"] },
       { id: "legRaise", name: "Hanging Leg Raises", sets: 3, reps: 10, type: "bw", rest: 90 },
     ],
   },
@@ -257,6 +303,10 @@ function save() {
   try { localStorage.setItem("climb-strong-v2", JSON.stringify(state)); } catch(e) {}
 }
 
+function getExSets(ex) {
+  return ex.grips ? ex.grips.length * ex.setsPerGrip : ex.sets;
+}
+
 function fmt(s) {
   const m = Math.floor(s / 60);
   const sec = s % 60;
@@ -291,11 +341,21 @@ function startDay(dayNum) {
   const day = ROUTINE[dayNum];
   session = {};
   day.exercises.forEach(ex => {
-    const lastW = state.weights[ex.id];
-    session[ex.id] = {
-      sets: Array(ex.sets).fill(false),
-      weights: Array(ex.sets).fill(lastW || null),
-    };
+    const total = getExSets(ex);
+    if (ex.type === "hang" && ex.grips) {
+      const weights = [];
+      for (let i = 0; i < total; i++) {
+        const gi = Math.floor(i / ex.setsPerGrip);
+        weights.push(state.weights[ex.id + "_" + gi] || null);
+      }
+      session[ex.id] = { sets: Array(total).fill(false), weights };
+    } else {
+      const lastW = state.weights[ex.id];
+      session[ex.id] = {
+        sets: Array(total).fill(false),
+        weights: Array(total).fill(lastW || null),
+      };
+    }
   });
   view = "workout";
   render();
@@ -324,6 +384,15 @@ function finishWorkout() {
       if (lastW) {
         newWeights[ex.id] = allDone ? lastW + ex.inc : lastW;
       }
+    } else if (ex.type === "hang" && ex.grips) {
+      const d = session[ex.id];
+      ex.grips.forEach((grip, gi) => {
+        const start = gi * ex.setsPerGrip;
+        const gripWeights = d.weights.slice(start, start + ex.setsPerGrip).filter(Boolean);
+        if (gripWeights.length > 0) {
+          newWeights[ex.id + "_" + gi] = Math.max(...gripWeights);
+        }
+      });
     }
   });
   state.weights = newWeights;
@@ -354,7 +423,7 @@ function getTotals() {
   const day = ROUTINE[currentDay];
   let total = 0, done = 0;
   day.exercises.forEach(ex => {
-    total += ex.sets;
+    total += getExSets(ex);
     done += (session[ex.id]?.sets?.filter(Boolean).length || 0);
   });
   return [done, total];
@@ -366,6 +435,7 @@ function render() {
   if (view === "home") renderHome(app);
   else if (view === "workout") renderWorkout(app);
   else if (view === "done") renderDone(app);
+  else if (view === "stats") renderStats(app);
 }
 
 function renderHome(el) {
@@ -373,9 +443,12 @@ function renderHome(el) {
   state.history.forEach(h => { lastByDay[h.day] = h.date; });
 
   let html = `
-    <div class="home-header">
-      <h1>Climb Strong</h1>
-      <div class="sub">${state.history.length} workout${state.history.length !== 1 ? "s" : ""} logged</div>
+    <div class="home-header" style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <h1>Climb Strong</h1>
+        <div class="sub">${state.history.length} workout${state.history.length !== 1 ? "s" : ""} logged</div>
+      </div>
+      <button onclick="showStats()" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 16px;color:var(--fg);font-size:13px;font-weight:600;margin-top:4px">Stats</button>
     </div>`;
 
   Object.entries(ROUTINE).forEach(([num, day], i) => {
@@ -384,6 +457,12 @@ function renderHome(el) {
     day.exercises.filter(e => e.type === "weight").forEach(ex => {
       const w = state.weights[ex.id];
       if (w) tags += `<span class="weight-tag mono">${ex.name.split(" ")[0]}: ${w} lbs</span>`;
+    });
+    day.exercises.filter(e => e.type === "hang" && e.grips).forEach(ex => {
+      ex.grips.forEach((grip, gi) => {
+        const w = state.weights[ex.id + "_" + gi];
+        if (w) tags += `<span class="weight-tag mono">${grip}: +${w} lbs</span>`;
+      });
     });
 
     html += `
@@ -470,45 +549,66 @@ function renderWorkout(el) {
   // Exercises
   day.exercises.forEach(ex => {
     const d = session[ex.id] || { sets: [], weights: [] };
+    const totalSets = getExSets(ex);
     const cCount = d.sets.filter(Boolean).length;
-    const allDone = cCount === ex.sets;
+    const allDone = cCount === totalSets;
 
     html += `<div class="ex-card ${allDone ? "complete" : ""}">
       <div class="ex-header">
         <h3>${ex.name}</h3>
-        <span class="count mono">${cCount}/${ex.sets}</span>
+        <span class="count mono">${cCount}/${totalSets}</span>
       </div>
       <div class="ex-meta">
         Rest: ${fmt(ex.rest)}${ex.type === "weight" && ex.inc ? ` · +${ex.inc} lbs/session` : ""}
       </div>`;
 
-    for (let i = 0; i < ex.sets; i++) {
-      const done = d.sets[i];
-      let info = "";
-      if (ex.type === "hang" && ex.grips) {
-        info = `${ex.grips[i] || ex.grips[0]} · ${ex.hold}s`;
-      } else if (ex.type === "repeater") {
-        info = `${ex.reps} reps · ${ex.hold}s on / ${ex.restIn}s off`;
-      } else if (ex.reps) {
-        info = `${ex.reps} reps`;
+    if (ex.type === "hang" && ex.grips) {
+      ex.grips.forEach((grip, gi) => {
+        html += `<div class="grip-header">${grip}</div>`;
+        for (let s = 0; s < ex.setsPerGrip; s++) {
+          const i = gi * ex.setsPerGrip + s;
+          const done = d.sets[i];
+          html += `
+            <div class="set-row ${done ? "done" : ""}">
+              <div class="set-num ${done ? "checked" : "pending"}">${done ? "✓" : s + 1}</div>
+              <div class="set-info">${ex.hold}s hang</div>
+              <input type="number" class="weight-input mono" value="${d.weights[i] || ""}"
+                placeholder="+lbs" ${done ? "disabled" : ""}
+                oninput="setWeight('${ex.id}',${i},Number(this.value))">
+              <button class="log-btn ${done ? "inactive" : "active"}"
+                ${done ? "disabled" : ""} onclick="logSet('${ex.id}',${i},${ex.rest})">
+                ${done ? "Done" : "Log"}
+              </button>
+            </div>`;
+        }
+      });
+    } else {
+      for (let i = 0; i < totalSets; i++) {
+        const done = d.sets[i];
+        let info = "";
+        if (ex.type === "repeater") {
+          info = `${ex.reps} reps · ${ex.hold}s on / ${ex.restIn}s off`;
+        } else if (ex.reps) {
+          info = `${ex.reps} reps`;
+        }
+
+        const weightInput = ex.type === "weight"
+          ? `<input type="number" class="weight-input mono" value="${d.weights[i] || ""}"
+              placeholder="lbs" ${done ? "disabled" : ""}
+              oninput="setWeight('${ex.id}',${i},Number(this.value))">`
+          : "";
+
+        html += `
+          <div class="set-row ${done ? "done" : ""}">
+            <div class="set-num ${done ? "checked" : "pending"}">${done ? "✓" : i + 1}</div>
+            <div class="set-info">${info}</div>
+            ${weightInput}
+            <button class="log-btn ${done ? "inactive" : "active"}"
+              ${done ? "disabled" : ""} onclick="logSet('${ex.id}',${i},${ex.rest})">
+              ${done ? "Done" : "Log"}
+            </button>
+          </div>`;
       }
-
-      const weightInput = ex.type === "weight"
-        ? `<input type="number" class="weight-input mono" value="${d.weights[i] || ""}"
-            placeholder="lbs" ${done ? "disabled" : ""}
-            oninput="setWeight('${ex.id}',${i},Number(this.value))">`
-        : "";
-
-      html += `
-        <div class="set-row ${done ? "done" : ""}">
-          <div class="set-num ${done ? "checked" : "pending"}">${done ? "✓" : i + 1}</div>
-          <div class="set-info">${info}</div>
-          ${weightInput}
-          <button class="log-btn ${done ? "inactive" : "active"}"
-            ${done ? "disabled" : ""} onclick="logSet('${ex.id}',${i},${ex.rest})">
-            ${done ? "Done" : "Log"}
-          </button>
-        </div>`;
     }
     html += `</div>`;
   });
@@ -538,6 +638,20 @@ function renderDone(el) {
       </div>`;
     }
   });
+  day.exercises.filter(e => e.type === "hang" && e.grips).forEach(ex => {
+    const d = session[ex.id];
+    ex.grips.forEach((grip, gi) => {
+      const start = gi * ex.setsPerGrip;
+      const gripWeights = d.weights.slice(start, start + ex.setsPerGrip).filter(Boolean);
+      if (gripWeights.length > 0) {
+        const maxW = Math.max(...gripWeights);
+        progHtml += `<div class="prog-row">
+          <span class="name">${grip}</span>
+          <span class="val mono same">+${maxW} lbs</span>
+        </div>`;
+      }
+    });
+  });
 
   el.innerHTML = `
     <div class="done-screen">
@@ -547,6 +661,187 @@ function renderDone(el) {
       ${progHtml}
       <button class="home-btn" onclick="goHome()">Back to Home</button>
     </div>`;
+}
+
+function showStats() {
+  view = "stats";
+  render();
+  window.scrollTo(0, 0);
+}
+
+function renderStats(el) {
+  const hist = state.history;
+  const totalWorkouts = hist.length;
+
+  // Workouts this week (Mon-Sun)
+  const now = new Date();
+  const dayOfWeek = (now.getDay() + 6) % 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - dayOfWeek);
+  monday.setHours(0, 0, 0, 0);
+  const thisWeek = hist.filter(h => new Date(h.date + "T12:00:00") >= monday).length;
+
+  // Streak: consecutive weeks with at least 1 workout
+  let streak = 0;
+  if (hist.length > 0) {
+    const weekStart = d => {
+      const dt = new Date(d + "T12:00:00");
+      const dow = (dt.getDay() + 6) % 7;
+      dt.setDate(dt.getDate() - dow);
+      return dt.toISOString().slice(0, 10);
+    };
+    const weeks = new Set(hist.map(h => weekStart(h.date)));
+    let check = new Date(monday);
+    while (weeks.has(check.toISOString().slice(0, 10))) {
+      streak++;
+      check.setDate(check.getDate() - 7);
+    }
+  }
+
+  let html = `
+    <div class="stats-header">
+      <button class="back-btn" onclick="goHome()">← Back</button>
+      <h2>Progression</h2>
+      <div></div>
+    </div>
+    <div class="stat-cards">
+      <div class="stat-card">
+        <div class="stat-val mono">${totalWorkouts}</div>
+        <div class="stat-label">Total</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val mono">${thisWeek}</div>
+        <div class="stat-label">This Week</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val mono">${streak}w</div>
+        <div class="stat-label">Streak</div>
+      </div>
+    </div>`;
+
+  if (totalWorkouts === 0) {
+    html += `<div class="stat-empty">Complete a workout to see your progression.</div>`;
+    el.innerHTML = html;
+    return;
+  }
+
+  // Gather per-exercise data from history
+  const exData = {};
+  const allExercises = [];
+  Object.values(ROUTINE).forEach(day => {
+    day.exercises.forEach(ex => {
+      if (!allExercises.find(e => e.id === ex.id)) allExercises.push(ex);
+    });
+  });
+
+  allExercises.forEach(ex => {
+    if (ex.type === "weight") {
+      const entries = [];
+      hist.forEach(h => {
+        const d = h.data[ex.id];
+        if (d) {
+          const ws = d.weights.filter(Boolean);
+          if (ws.length > 0) entries.push({ date: h.date, weight: Math.max(...ws), allDone: d.sets.every(Boolean) });
+        }
+      });
+      if (entries.length > 0) exData[ex.id] = { type: "weight", name: ex.name, entries };
+    } else if (ex.type === "hang" && ex.grips) {
+      ex.grips.forEach((grip, gi) => {
+        const key = ex.id + "_" + gi;
+        const entries = [];
+        hist.forEach(h => {
+          const d = h.data[ex.id];
+          if (d) {
+            const start = gi * (ex.setsPerGrip || 1);
+            const end = start + (ex.setsPerGrip || 1);
+            const ws = d.weights.slice(start, end).filter(Boolean);
+            if (ws.length > 0) entries.push({ date: h.date, weight: Math.max(...ws) });
+          }
+        });
+        if (entries.length > 0) exData[key] = { type: "hang", name: grip, entries };
+      });
+    }
+  });
+
+  // Strength progression
+  const weightExKeys = Object.keys(exData).filter(k => exData[k].type === "weight");
+  if (weightExKeys.length > 0) {
+    html += `<div class="stats-section"><h3>Strength</h3>`;
+    weightExKeys.forEach(k => {
+      const d = exData[k];
+      const recent = d.entries.slice(-6);
+      const pr = Math.max(...d.entries.map(e => e.weight));
+      const last = recent[recent.length - 1].weight;
+      const prev = recent.length > 1 ? recent[recent.length - 2].weight : last;
+      const arrow = last > prev ? "↑" : last < prev ? "↓" : "→";
+      const arrowClass = last > prev ? "up" : last < prev ? "down" : "flat";
+
+      html += `<div class="stat-ex-card">
+        <div class="stat-ex-name">${d.name}</div>
+        <div class="stat-ex-row">
+          <div class="stat-ex-values">
+            ${recent.map(e => `<span class="mono">${e.weight}</span>`).join("")}
+          </div>
+          <span class="stat-arrow ${arrowClass}">${arrow}</span>
+        </div>
+        <div class="stat-pr">PR: ${pr} lbs</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Hangboard progression
+  const hangKeys = Object.keys(exData).filter(k => exData[k].type === "hang");
+  if (hangKeys.length > 0) {
+    html += `<div class="stats-section"><h3>Hangboard</h3>`;
+    hangKeys.forEach(k => {
+      const d = exData[k];
+      const recent = d.entries.slice(-6);
+      const pr = Math.max(...d.entries.map(e => e.weight));
+      const last = recent[recent.length - 1].weight;
+      const prev = recent.length > 1 ? recent[recent.length - 2].weight : last;
+      const arrow = last > prev ? "↑" : last < prev ? "↓" : "→";
+      const arrowClass = last > prev ? "up" : last < prev ? "down" : "flat";
+
+      html += `<div class="stat-ex-card">
+        <div class="stat-ex-name">${d.name}</div>
+        <div class="stat-ex-row">
+          <div class="stat-ex-values">
+            ${recent.map(e => `<span class="mono">+${e.weight}</span>`).join("")}
+          </div>
+          <span class="stat-arrow ${arrowClass}">${arrow}</span>
+        </div>
+        <div class="stat-pr">PR: +${pr} lbs</div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  // Recent workouts
+  html += `<div class="stats-section"><h3>Recent Workouts</h3>`;
+  const recent = [...hist].reverse().slice(0, 10);
+  recent.forEach(h => {
+    const day = ROUTINE[h.day];
+    const d = h.data;
+    let setsLogged = 0, totalSets = 0;
+    if (day) {
+      day.exercises.forEach(ex => {
+        const total = getExSets(ex);
+        totalSets += total;
+        setsLogged += (d[ex.id]?.sets?.filter(Boolean).length || 0);
+      });
+    }
+    html += `<div class="history-entry">
+      <div>
+        <div style="font-weight:600">Day ${h.day} · ${day?.name || "Unknown"}</div>
+        <div style="font-size:11px;color:var(--fg-dim);margin-top:2px">${setsLogged}/${totalSets} sets</div>
+      </div>
+      <span class="mono" style="color:var(--fg-dim);font-size:12px">${h.date}</span>
+    </div>`;
+  });
+  html += `</div>`;
+
+  el.innerHTML = html;
 }
 
 // Init
