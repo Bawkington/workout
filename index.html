@@ -256,7 +256,7 @@ const ROUTINE = {
   1: {
     name: "Heavy Pull + Fingers",
     exercises: [
-      { id: "pullups", name: "Weighted Pull-ups", sets: 4, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
+      { id: "pullups", name: "Weighted Pull-ups", sets: 6, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
       { id: "hangs", name: "Hangboard Max Hangs", setsPerGrip: 3, hold: 10, type: "hang", rest: 180,
         grips: ["Half Crimp", "Three Finger Drag"] },
       { id: "legRaise", name: "Hanging Leg Raises", sets: 3, reps: 10, type: "bw", rest: 90 },
@@ -265,8 +265,8 @@ const ROUTINE = {
   3: {
     name: "Push + Legs",
     exercises: [
-      { id: "bench", name: "Barbell Bench Press", sets: 4, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
-      { id: "ohp", name: "Overhead Press", sets: 3, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
+      { id: "bench", name: "Barbell Bench Press", sets: 6, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
+      { id: "ohp", name: "Overhead Press", sets: 5, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
       { id: "deadlift", name: "Deadlift", sets: 3, reps: 5, type: "weight", rest: 180, inc: 5, warmup: 2 },
     ],
   },
@@ -386,7 +386,8 @@ function finishWorkout() {
   day.exercises.forEach(ex => {
     if (ex.type === "weight" || (ex.type === "repeater" && ex.inc)) {
       const d = session[ex.id];
-      const allDone = d.sets.every(Boolean);
+      const workingSets = ex.warmup ? d.sets.slice(ex.warmup) : d.sets;
+      const allDone = workingSets.every(Boolean);
       const lastW = d.weights[d.weights.length - 1];
       if (lastW && ex.inc) {
         newWeights[ex.id] = allDone ? lastW + ex.inc : lastW;
