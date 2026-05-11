@@ -1,7 +1,7 @@
 {
   "name": "Climb Strong",
   "short_name": "Climb Strong",
-  "start_url": "/index.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f1114",
   "theme_color": "#0f1114",
