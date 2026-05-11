@@ -272,9 +272,9 @@ const ROUTINE = {
   4: {
     name: "Pulling Endurance + Rings",
     exercises: [
-      { id: "ringPull", name: "Ring Pull-ups / Rows", sets: 4, reps: 10, type: "bw", rest: 120 },
-      { id: "ringDips", name: "Ring Dips", sets: 3, reps: 10, type: "bw", rest: 120 },
-      { id: "repeaters", name: "Hangboard Repeaters", sets: 2, reps: 6, hold: 6, restIn: 3, type: "repeater", rest: 180 },
+      { id: "ringPull", name: "Ring Pull-ups / Rows", sets: 4, reps: 10, type: "weight", rest: 120, inc: 2.5 },
+      { id: "ringDips", name: "Ring Dips", sets: 3, reps: 10, type: "weight", rest: 120, inc: 2.5 },
+      { id: "repeaters", name: "Hangboard Repeaters", sets: 2, reps: 6, hold: 6, restIn: 3, type: "repeater", rest: 180, inc: 2.5 },
       { id: "legRaise2", name: "Hanging Leg Raises", sets: 3, reps: 10, type: "bw", rest: 90 },
     ],
   },
@@ -377,7 +377,7 @@ function finishWorkout() {
   const day = ROUTINE[currentDay];
   const newWeights = { ...state.weights };
   day.exercises.forEach(ex => {
-    if (ex.type === "weight") {
+    if (ex.type === "weight" || (ex.type === "repeater" && ex.inc)) {
       const d = session[ex.id];
       const allDone = d.sets.every(Boolean);
       const lastW = d.weights[d.weights.length - 1];
@@ -454,7 +454,7 @@ function renderHome(el) {
   Object.entries(ROUTINE).forEach(([num, day], i) => {
     const exNames = day.exercises.map(e => e.name).join(" · ");
     let tags = "";
-    day.exercises.filter(e => e.type === "weight").forEach(ex => {
+    day.exercises.filter(e => e.type === "weight" || (e.type === "repeater" && e.inc)).forEach(ex => {
       const w = state.weights[ex.id];
       if (w) tags += `<span class="weight-tag mono">${ex.name.split(" ")[0]}: ${w} lbs</span>`;
     });
@@ -592,9 +592,9 @@ function renderWorkout(el) {
           info = `${ex.reps} reps`;
         }
 
-        const weightInput = ex.type === "weight"
+        const weightInput = ex.type !== "bw"
           ? `<input type="number" class="weight-input mono" value="${d.weights[i] || ""}"
-              placeholder="lbs" ${done ? "disabled" : ""}
+              placeholder="${ex.type === "repeater" ? "+lbs" : "lbs"}" ${done ? "disabled" : ""}
               oninput="setWeight('${ex.id}',${i},Number(this.value))">`
           : "";
 
@@ -625,7 +625,7 @@ function renderDone(el) {
   const [done, total] = getTotals();
 
   let progHtml = "";
-  day.exercises.filter(e => e.type === "weight").forEach(ex => {
+  day.exercises.filter(e => e.type === "weight" || (e.type === "repeater" && e.inc)).forEach(ex => {
     const d = session[ex.id];
     const allDone = d?.sets?.every(Boolean);
     const lastW = d?.weights?.[d.weights.length - 1];
@@ -735,7 +735,7 @@ function renderStats(el) {
   });
 
   allExercises.forEach(ex => {
-    if (ex.type === "weight") {
+    if (ex.type === "weight" || (ex.type === "repeater" && ex.inc)) {
       const entries = [];
       hist.forEach(h => {
         const d = h.data[ex.id];
