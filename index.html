@@ -256,7 +256,7 @@ const ROUTINE = {
   1: {
     name: "Heavy Pull + Fingers",
     exercises: [
-      { id: "pullups", name: "Weighted Pull-ups", sets: 4, reps: 5, type: "weight", rest: 180, inc: 2.5 },
+      { id: "pullups", name: "Weighted Pull-ups", sets: 4, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
       { id: "hangs", name: "Hangboard Max Hangs", setsPerGrip: 3, hold: 10, type: "hang", rest: 180,
         grips: ["Half Crimp", "Three Finger Drag"] },
       { id: "legRaise", name: "Hanging Leg Raises", sets: 3, reps: 10, type: "bw", rest: 90 },
@@ -265,8 +265,8 @@ const ROUTINE = {
   3: {
     name: "Push + Legs",
     exercises: [
-      { id: "bench", name: "Barbell Bench Press", sets: 4, reps: 5, type: "weight", rest: 180, inc: 2.5 },
-      { id: "ohp", name: "Overhead Press", sets: 3, reps: 5, type: "weight", rest: 180, inc: 2.5 },
+      { id: "bench", name: "Barbell Bench Press", sets: 4, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
+      { id: "ohp", name: "Overhead Press", sets: 3, reps: 5, type: "weight", rest: 180, inc: 2.5, warmup: 2 },
       { id: "deadlift", name: "Deadlift", sets: 3, reps: 5, type: "weight", rest: 180, inc: 5, warmup: 2 },
     ],
   },
@@ -352,10 +352,16 @@ function startDay(dayNum) {
       session[ex.id] = { sets: Array(total).fill(false), weights };
     } else {
       const lastW = state.weights[ex.id];
-      session[ex.id] = {
-        sets: Array(total).fill(false),
-        weights: Array(total).fill(lastW || null),
-      };
+      const weights = [];
+      for (let i = 0; i < total; i++) {
+        if (ex.warmup && lastW && i < ex.warmup) {
+          const pct = i === 0 ? 0.5 : 0.75;
+          weights.push(Math.round(lastW * pct / 5) * 5);
+        } else {
+          weights.push(lastW || null);
+        }
+      }
+      session[ex.id] = { sets: Array(total).fill(false), weights };
     }
   });
   view = "workout";
