@@ -134,6 +134,7 @@
   }
   .set-row:last-child { border-bottom: none; }
   .set-row.done { opacity: 0.4; }
+  .set-row.warmup .set-info { color: var(--fg-dim); font-style: italic; }
 
   .set-num {
     width: 30px; height: 30px; border-radius: 50%;
@@ -266,15 +267,15 @@ const ROUTINE = {
     exercises: [
       { id: "bench", name: "Barbell Bench Press", sets: 4, reps: 5, type: "weight", rest: 180, inc: 2.5 },
       { id: "ohp", name: "Overhead Press", sets: 3, reps: 5, type: "weight", rest: 180, inc: 2.5 },
-      { id: "deadlift", name: "Deadlift", sets: 3, reps: 5, type: "weight", rest: 180, inc: 5 },
+      { id: "deadlift", name: "Deadlift", sets: 3, reps: 5, type: "weight", rest: 180, inc: 5, warmup: 2 },
     ],
   },
   5: {
     name: "Pulling Endurance + Rings",
     exercises: [
-      { id: "ringPull", name: "Ring Rows", sets: 4, reps: 10, type: "weight", rest: 120, inc: 2.5 },
+      { id: "ringPull", name: "Ring Rows", sets: 4, reps: 10, type: "weight", rest: 120 },
       { id: "ringDips", name: "Ring Dips", sets: 3, reps: 10, type: "weight", rest: 120, inc: 2.5 },
-      { id: "repeaters", name: "Hangboard Repeaters", sets: 2, reps: 6, hold: 6, restIn: 3, type: "repeater", rest: 180, inc: 2.5 },
+      { id: "repeaters", name: "Hangboard Repeaters", sets: 3, reps: 6, hold: 6, restIn: 3, type: "repeater", rest: 180, inc: 2.5 },
       { id: "legRaise2", name: "Hanging Leg Raises", sets: 3, reps: 10, type: "bw", rest: 90 },
     ],
   },
@@ -381,8 +382,10 @@ function finishWorkout() {
       const d = session[ex.id];
       const allDone = d.sets.every(Boolean);
       const lastW = d.weights[d.weights.length - 1];
-      if (lastW) {
+      if (lastW && ex.inc) {
         newWeights[ex.id] = allDone ? lastW + ex.inc : lastW;
+      } else if (lastW) {
+        newWeights[ex.id] = lastW;
       }
     } else if (ex.type === "hang" && ex.grips) {
       const d = session[ex.id];
@@ -586,8 +589,11 @@ function renderWorkout(el) {
       for (let i = 0; i < totalSets; i++) {
         const done = d.sets[i];
         let info = "";
+        const isWarmup = ex.warmup && i < ex.warmup;
         if (ex.type === "repeater") {
           info = `${ex.reps} reps · ${ex.hold}s on / ${ex.restIn}s off`;
+        } else if (isWarmup) {
+          info = `Warmup · ${ex.reps} reps`;
         } else if (ex.reps) {
           info = `${ex.reps} reps`;
         }
@@ -599,7 +605,7 @@ function renderWorkout(el) {
           : "";
 
         html += `
-          <div class="set-row ${done ? "done" : ""}">
+          <div class="set-row ${done ? "done" : ""}${isWarmup ? " warmup" : ""}">
             <div class="set-num ${done ? "checked" : "pending"}">${done ? "✓" : i + 1}</div>
             <div class="set-info">${info}</div>
             ${weightInput}
