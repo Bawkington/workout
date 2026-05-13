@@ -383,16 +383,35 @@ function startRest(seconds) {
   clearInterval(restInterval);
   restTotal = seconds;
   restRemaining = seconds;
+  render();
   restInterval = setInterval(() => {
     restRemaining--;
     if (restRemaining <= 0) {
       clearInterval(restInterval);
       restInterval = null;
       if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      render();
+    } else {
+      updateTimer();
     }
-    render();
   }, 1000);
-  render();
+}
+
+function updateTimer() {
+  const txt = document.getElementById("timer-text");
+  const arc = document.getElementById("timer-arc");
+  if (!txt || !arc) return;
+  const r = 54;
+  const circ = 2 * Math.PI * r;
+  const progress = restTotal > 0 ? restRemaining / restTotal : 0;
+  const offset = circ * (1 - progress);
+  const urgent = restRemaining <= 10 && restRemaining > 0;
+  const col = urgent ? "var(--urgent)" : "var(--accent)";
+  txt.textContent = fmt(restRemaining);
+  txt.style.color = col;
+  txt.className = "timer-text mono" + (urgent ? " urgent" : "");
+  arc.style.stroke = col;
+  arc.setAttribute("stroke-dashoffset", offset);
 }
 
 function skipRest() {
@@ -686,11 +705,11 @@ function renderWorkout(el) {
         <div class="timer-circle">
           <svg viewBox="0 0 120 120">
             <circle cx="60" cy="60" r="${r}" fill="none" stroke="var(--track)" stroke-width="8"/>
-            <circle cx="60" cy="60" r="${r}" fill="none" stroke="${col}" stroke-width="8"
+            <circle id="timer-arc" cx="60" cy="60" r="${r}" fill="none" stroke="${col}" stroke-width="8"
               stroke-linecap="round" stroke-dasharray="${circ}" stroke-dashoffset="${offset}"
-              transform="rotate(-90 60 60)"/>
+              transform="rotate(-90 60 60)" style="transition:stroke-dashoffset 0.3s ease,stroke 0.3s ease"/>
           </svg>
-          <div class="timer-text mono ${urgent ? "urgent" : ""}" style="color:${col}">
+          <div id="timer-text" class="timer-text mono ${urgent ? "urgent" : ""}" style="color:${col}">
             ${fmt(restRemaining)}
           </div>
         </div>
